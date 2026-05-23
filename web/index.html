@@ -301,11 +301,10 @@ async function renderLanding(){
     </div>
     ${offlineNote}
     <h2 style="margin-top:30px;">Karta &amp; whiteboard</h2>
-    <a class="campaign-banner" href="https://excalidraw.com/#room=93bcc9508fa461969769,34esjig0QdFBq5EhADJgbA" target="_blank" rel="noopener">
-      <div><div class="cb-title">Excalidraw</div>
-        <div class="cb-sub">Delad whiteboard / karta — öppnas i ny flik</div></div>
-      <span class="cb-arrow">↗</span>
-    </a>
+    <div style="text-align:right;margin-bottom:8px;">
+      <a href="https://excalidraw.com/#room=93bcc9508fa461969769,34esjig0QdFBq5EhADJgbA" target="_blank" rel="noopener" style="font-size:13px;color:var(--accent);text-decoration:none;letter-spacing:.06em;">Öppna i fullskärm ↗</a>
+    </div>
+    <iframe src="https://excalidraw.com/#room=93bcc9508fa461969769,34esjig0QdFBq5EhADJgbA" title="Excalidraw — delad karta" style="width:100%;height:72vh;border:1.5px solid var(--ink);border-radius:5px;box-shadow:0 6px 18px rgba(0,0,0,.3);background:#fff;display:block;" allow="clipboard-read; clipboard-write"></iframe>
     <div class="note">Välj en riddare för att se arket, eller öppna en plats i kampanjen.<br>Vill du lägga till en ny rollperson — säg till spelledaren.</div>`;
 
   const addMsg = document.getElementById("addPlaceMsg");
