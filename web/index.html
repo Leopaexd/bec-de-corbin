@@ -87,6 +87,27 @@
     box-shadow:0 4px 12px rgba(0,0,0,.2);}
   .gallery img{display:block;width:100%;height:150px;object-fit:cover;}
   .gallery .empty{grid-column:1/-1;font-size:14px;color:var(--ink-soft);font-style:italic;}
+  .journal-form{border:1.5px solid var(--line);border-left:5px solid var(--accent);border-radius:5px;
+    background:var(--parch-deep);padding:16px 18px;margin:14px 0 4px;display:none;}
+  .journal-form.open{display:block;}
+  .journal-form .jf-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px;}
+  .journal-form .jf-row > div{flex:1;min-width:140px;}
+  .journal-form label{display:block;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:3px;}
+  .journal-form input,.journal-form textarea{font-family:inherit;font-size:15px;color:var(--ink);width:100%;
+    background:var(--parch);border:1px solid var(--line);border-radius:3px;padding:6px 9px;}
+  .journal-form textarea{min-height:120px;resize:vertical;line-height:1.5;}
+  .journal-list{margin-top:18px;display:flex;flex-direction:column;gap:16px;}
+  .log-card{border:1.5px solid var(--ink);border-radius:5px;padding:16px 20px;background:var(--parch-deep);
+    box-shadow:0 4px 12px rgba(0,0,0,.15);}
+  .log-card .lc-meta{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);}
+  .log-card .lc-meta .lc-who{color:var(--accent);font-weight:700;}
+  .log-card .lc-title{font-size:22px;font-weight:600;margin:4px 0 8px;}
+  .log-card .lc-body{font-size:15.5px;line-height:1.6;color:var(--ink-soft);white-space:pre-wrap;}
+  .log-card .lc-actions{margin-top:12px;display:flex;gap:14px;}
+  .log-card .lc-actions button{font-family:inherit;font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+    background:transparent;border:none;cursor:pointer;color:var(--ink-soft);padding:0;}
+  .log-card .lc-actions button:hover{color:var(--accent);}
+  .journal-empty{font-size:15px;color:var(--ink-soft);font-style:italic;margin-top:18px;}
   @media (max-width:680px){.grid{grid-template-columns:1fr;}}
   @media print{body{background:#fff;padding:0;}.sheet{box-shadow:none;border:none;}
     .editable,.vbox input{border:none;background:transparent;color:var(--ink);font-style:normal;}
@@ -266,6 +287,7 @@ function randChars(n){
 }
 
 if (!key) { renderLanding(); }
+else if (key === "dagbok") { renderJournal(); }
 else if (key === "kampanj" || key.startsWith("camp-")) { renderCampaign(key); }
 else if (CHARACTERS[key]) { renderSheet(key, CHARACTERS[key]); }
 else { renderLanding(); }
@@ -305,6 +327,12 @@ async function renderLanding(){
       <div><div class="cb-title">Excalidraw</div>
         <div class="cb-sub">Delad whiteboard / karta — öppnas i ny flik</div></div>
       <span class="cb-arrow">↗</span>
+    </a>
+    <h2 style="margin-top:30px;">Krönika</h2>
+    <a class="campaign-banner" href="?c=dagbok">
+      <div><div class="cb-title">Dagbok</div>
+        <div class="cb-sub">Krönika · scener &amp; minnen</div></div>
+      <span class="cb-arrow">→</span>
     </a>
     <div class="note">Välj en riddare för att se arket, eller öppna en plats i kampanjen.<br>Vill du lägga till en ny rollperson — säg till spelledaren.</div>`;
 
@@ -545,6 +573,185 @@ function wireCampaign(id, isHome){
     }
     mFile.value = "";
   });
+}
+
+/* ---------- JOURNAL / DAGBOK (shared via /api/state key "journal") ---------- */
+const JOURNAL_KEY = "journal";
+const JOURNAL_STORE = "mb-journal-v1";
+
+function normalizeJournal(obj){
+  const entries = (obj && Array.isArray(obj.entries)) ? obj.entries : [];
+  return { entries: entries.filter(e=>e && e.id).map(e=>({
+    id:String(e.id), date:esc(e.date), title:esc(e.title), who:esc(e.who), body:esc(e.body)
+  })) };
+}
+function sortedEntries(data){
+  return data.entries.slice().sort((a,b)=>{
+    if(a.date!==b.date) return a.date<b.date ? 1 : -1; // newest date first
+    return a.id<b.id ? 1 : (a.id>b.id ? -1 : 0);        // tiebreak by id desc
+  });
+}
+function todayISO(){
+  const d=new Date(), p=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+
+async function renderJournal(){
+  document.title = "Dagbok — Björkeborgs Cirkel";
+  root.innerHTML = `
+  <a class="backlink" href="./">← Björkeborgs Cirkel</a>
+  <header>
+    <div class="title-tag">Mythic Bastionland · ${REALM} · ${HOLDING}</div>
+    <h1>Dagbok</h1><div class="subtitle">Krönika · scener &amp; minnen</div>
+  </header>
+  <div id="journalOffline"></div>
+
+  <section><h2>Krönikan</h2>
+    <div>
+      <button id="newEntryBtn" class="die-btn" style="background:transparent;">＋ Ny anteckning</button>
+      <span class="upload-msg" id="journalMsg" style="margin-left:10px;"></span>
+    </div>
+    <div class="journal-form" id="journalForm">
+      <div class="jf-row">
+        <div style="flex:0 0 150px;min-width:130px;"><label for="jfDate">Datum</label>
+          <input type="date" id="jfDate"></div>
+        <div><label for="jfTitle">Titel</label>
+          <input type="text" id="jfTitle" placeholder="Vad hände?"></div>
+        <div><label for="jfWho">Vem</label>
+          <input type="text" id="jfWho" placeholder="Riddare / spelare (valfritt)"></div>
+      </div>
+      <div><label for="jfBody">Brödtext</label>
+        <textarea id="jfBody" placeholder="Berätta scenen…"></textarea></div>
+      <div style="margin-top:12px;">
+        <button id="jfSave" class="sheetbtn">Spara anteckning</button>
+        <button id="jfCancel" class="sheetbtn" style="background:transparent;color:var(--accent);border:1px solid var(--accent);">Avbryt</button>
+      </div>
+    </div>
+    <div class="journal-list" id="journalList"><div class="journal-empty">Laddar…</div></div>
+  </section>
+
+  <div class="note">${HOLDING}s krönika · riket ${REALM}</div>`;
+
+  wireJournal();
+}
+
+function wireJournal(){
+  const form = document.getElementById("journalForm");
+  const listEl = document.getElementById("journalList");
+  const msgEl = document.getElementById("journalMsg");
+  const offlineEl = document.getElementById("journalOffline");
+  const fDate = document.getElementById("jfDate"), fTitle = document.getElementById("jfTitle"),
+        fWho = document.getElementById("jfWho"), fBody = document.getElementById("jfBody");
+  let data = { entries: [] };
+  let editingId = null;
+
+  function status(t){ if(msgEl){ msgEl.textContent=t; if(t) setTimeout(()=>{ if(msgEl.textContent===t) msgEl.textContent=""; },4000); } }
+  function cacheLocal(d){ try{ localStorage.setItem(JOURNAL_STORE, JSON.stringify(d)); }catch(e){} }
+  function setOffline(on){ offlineEl.innerHTML = on ? `<div class="upload-msg" style="text-align:center;">Offline-läge – visar senast kända krönika.</div>` : ""; }
+
+  function render(){
+    const entries = sortedEntries(data);
+    if(!entries.length){ listEl.innerHTML = `<div class="journal-empty">Inga anteckningar ännu — skriv den första scenen.</div>`; return; }
+    listEl.innerHTML = entries.map(e=>{
+      const meta = esc(e.date) + (e.who ? ` · <span class="lc-who">${esc(e.who)}</span>` : "");
+      return `<div class="log-card" data-id="${esc(e.id)}">
+        <div class="lc-meta">${meta}</div>
+        <div class="lc-title">${esc(e.title) || "(utan titel)"}</div>
+        <div class="lc-body">${esc(e.body)}</div>
+        <div class="lc-actions">
+          <button data-act="edit">Redigera</button>
+          <button data-act="del">Ta bort</button>
+        </div></div>`;
+    }).join("");
+  }
+
+  function openForm(entry){
+    editingId = entry ? entry.id : null;
+    fDate.value = entry ? entry.date : todayISO();
+    fTitle.value = entry ? entry.title : "";
+    fWho.value = entry ? entry.who : "";
+    fBody.value = entry ? entry.body : "";
+    form.classList.add("open");
+    fTitle.focus();
+  }
+  function closeForm(){ form.classList.remove("open"); editingId=null; }
+
+  async function load(){
+    let cached=null; try{ cached=JSON.parse(localStorage.getItem(JOURNAL_STORE)); }catch(e){}
+    try{
+      const remote = await apiGetState(JOURNAL_KEY);
+      data = normalizeJournal(remote);
+      cacheLocal(data); setOffline(false);
+    }catch(err){
+      data = normalizeJournal(cached); setOffline(true);
+    }
+    render();
+  }
+
+  // Persist a mutation; mutate receives the freshest journal and returns the new one.
+  async function persist(mutate, draftOnFail){
+    if(!getPassword()){ status("Lösenord krävs – inte sparat"); return false; }
+    status("Sparar…");
+    // re-fetch freshest to avoid clobbering concurrent edits
+    let fresh = data;
+    try{ fresh = normalizeJournal(await apiGetState(JOURNAL_KEY)); }catch(e){ /* keep current */ }
+    const next = mutate(fresh);
+    try{
+      await apiPutState(JOURNAL_KEY, next);
+      data = normalizeJournal(next);
+      cacheLocal(data); setOffline(false); render();
+      status("Sparat ✓");
+      return true;
+    }catch(err){
+      status(err && err.code===401 ? "Fel lösenord – inte sparat" : "Offline – inte sparat");
+      if(draftOnFail) draftOnFail();
+      return false;
+    }
+  }
+
+  document.getElementById("newEntryBtn").addEventListener("click", ()=>{
+    if(form.classList.contains("open") && editingId===null){ closeForm(); } else { openForm(null); }
+  });
+  document.getElementById("jfCancel").addEventListener("click", closeForm);
+
+  document.getElementById("jfSave").addEventListener("click", async ()=>{
+    const entry = {
+      date: (fDate.value || todayISO()),
+      title: fTitle.value.trim(),
+      who: fWho.value.trim(),
+      body: fBody.value
+    };
+    if(!entry.title && !entry.body.trim()){ status("Skriv en titel eller text"); return; }
+    const id = editingId;
+    const ok = await persist((fresh)=>{
+      const entries = fresh.entries.slice();
+      if(id){
+        const i = entries.findIndex(e=>e.id===id);
+        if(i>=0) entries[i] = Object.assign({}, entries[i], entry, {id});
+        else entries.push(Object.assign({id}, entry));
+      }else{
+        entries.push(Object.assign({id:"j-"+Date.now()+"-"+randChars(4)}, entry));
+      }
+      return { entries };
+    });
+    if(ok) closeForm();
+    // on failure the form stays open with the draft intact
+  });
+
+  listEl.addEventListener("click", async (ev)=>{
+    const btn = ev.target.closest("button[data-act]"); if(!btn) return;
+    const card = btn.closest(".log-card"); if(!card) return;
+    const id = card.dataset.id;
+    const entry = data.entries.find(e=>e.id===id);
+    if(btn.dataset.act==="edit"){
+      if(entry) openForm(entry);
+    }else if(btn.dataset.act==="del"){
+      if(!confirm("Ta bort denna anteckning?")) return;
+      await persist((fresh)=>({ entries: fresh.entries.filter(e=>e.id!==id) }));
+    }
+  });
+
+  load();
 }
 
 /* ---------- PERSISTENCE + DICE ---------- */
