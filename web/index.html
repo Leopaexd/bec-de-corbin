@@ -102,6 +102,14 @@
   .log-card .lc-meta{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);}
   .log-card .lc-meta .lc-who{color:var(--accent);font-weight:700;}
   .log-card .lc-title{font-size:22px;font-weight:600;margin:4px 0 8px;}
+  .log-card .lc-image{display:block;margin:10px 0 12px;max-width:100%;max-height:420px;width:auto;height:auto;
+    object-fit:cover;border:1.5px solid var(--ink);border-radius:5px;box-shadow:0 3px 10px rgba(0,0,0,.18);}
+  .jf-thumb{display:none;margin-top:8px;}
+  .jf-thumb.show{display:block;}
+  .jf-thumb img{max-width:180px;max-height:140px;border:1.5px solid var(--ink);border-radius:4px;
+    box-shadow:0 2px 8px rgba(0,0,0,.18);display:block;margin-bottom:6px;}
+  .jf-thumb button{font-family:inherit;font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+    background:transparent;border:none;cursor:pointer;color:var(--accent);padding:0;}
   .log-card .lc-body{font-size:15.5px;line-height:1.6;color:var(--ink-soft);white-space:pre-wrap;}
   .log-card .lc-actions{margin-top:12px;display:flex;gap:14px;}
   .log-card .lc-actions button{font-family:inherit;font-size:12px;letter-spacing:.1em;text-transform:uppercase;
@@ -581,9 +589,13 @@ const JOURNAL_STORE = "mb-journal-v1";
 
 function normalizeJournal(obj){
   const entries = (obj && Array.isArray(obj.entries)) ? obj.entries : [];
-  return { entries: entries.filter(e=>e && e.id).map(e=>({
-    id:String(e.id), date:esc(e.date), title:esc(e.title), who:esc(e.who), body:esc(e.body)
-  })) };
+  return { entries: entries.filter(e=>e && e.id).map(e=>{
+    const o = {
+      id:String(e.id), date:esc(e.date), title:esc(e.title), who:esc(e.who), body:esc(e.body)
+    };
+    if(e.image) o.image = esc(String(e.image));
+    return o;
+  }) };
 }
 function sortedEntries(data){
   return data.entries.slice().sort((a,b)=>{
@@ -622,6 +634,15 @@ async function renderJournal(){
       </div>
       <div><label for="jfBody">Brödtext</label>
         <textarea id="jfBody" placeholder="Berätta scenen…"></textarea></div>
+      <div class="upload-row">
+        <label class="filebtn" for="jfImageFile">Bild till scenen</label>
+        <input type="file" id="jfImageFile" accept="image/*">
+        <span class="upload-msg" id="jfImageMsg"></span>
+      </div>
+      <div class="jf-thumb" id="jfThumb">
+        <img id="jfThumbImg" alt="Förhandsvisning">
+        <button type="button" id="jfImageRemove">Ta bort bild</button>
+      </div>
       <div style="margin-top:12px;">
         <button id="jfSave" class="sheetbtn">Spara anteckning</button>
         <button id="jfCancel" class="sheetbtn" style="background:transparent;color:var(--accent);border:1px solid var(--accent);">Avbryt</button>
@@ -642,8 +663,18 @@ function wireJournal(){
   const offlineEl = document.getElementById("journalOffline");
   const fDate = document.getElementById("jfDate"), fTitle = document.getElementById("jfTitle"),
         fWho = document.getElementById("jfWho"), fBody = document.getElementById("jfBody");
+  const fImageFile = document.getElementById("jfImageFile"), fImageMsg = document.getElementById("jfImageMsg"),
+        thumb = document.getElementById("jfThumb"), thumbImg = document.getElementById("jfThumbImg"),
+        imageRemove = document.getElementById("jfImageRemove");
   let data = { entries: [] };
   let editingId = null;
+  let imageUrl = null; // staged image URL for the open form
+
+  function setThumb(url){
+    imageUrl = url || null;
+    if(imageUrl){ thumbImg.src = imageUrl; thumb.classList.add("show"); }
+    else{ thumbImg.removeAttribute("src"); thumb.classList.remove("show"); }
+  }
 
   function status(t){ if(msgEl){ msgEl.textContent=t; if(t) setTimeout(()=>{ if(msgEl.textContent===t) msgEl.textContent=""; },4000); } }
   function cacheLocal(d){ try{ localStorage.setItem(JOURNAL_STORE, JSON.stringify(d)); }catch(e){} }
@@ -654,9 +685,11 @@ function wireJournal(){
     if(!entries.length){ listEl.innerHTML = `<div class="journal-empty">Inga anteckningar ännu — skriv den första scenen.</div>`; return; }
     listEl.innerHTML = entries.map(e=>{
       const meta = esc(e.date) + (e.who ? ` · <span class="lc-who">${esc(e.who)}</span>` : "");
+      const img = e.image ? `<a href="${esc(e.image)}" target="_blank" rel="noopener"><img class="lc-image" src="${esc(e.image)}" alt="Scenbild" loading="lazy"></a>` : "";
       return `<div class="log-card" data-id="${esc(e.id)}">
         <div class="lc-meta">${meta}</div>
         <div class="lc-title">${esc(e.title) || "(utan titel)"}</div>
+        ${img}
         <div class="lc-body">${esc(e.body)}</div>
         <div class="lc-actions">
           <button data-act="edit">Redigera</button>
@@ -671,10 +704,12 @@ function wireJournal(){
     fTitle.value = entry ? entry.title : "";
     fWho.value = entry ? entry.who : "";
     fBody.value = entry ? entry.body : "";
+    fImageMsg.textContent = "";
+    setThumb(entry && entry.image ? entry.image : null);
     form.classList.add("open");
     fTitle.focus();
   }
-  function closeForm(){ form.classList.remove("open"); editingId=null; }
+  function closeForm(){ form.classList.remove("open"); editingId=null; fImageMsg.textContent=""; setThumb(null); }
 
   async function load(){
     let cached=null; try{ cached=JSON.parse(localStorage.getItem(JOURNAL_STORE)); }catch(e){}
@@ -719,7 +754,8 @@ function wireJournal(){
       date: (fDate.value || todayISO()),
       title: fTitle.value.trim(),
       who: fWho.value.trim(),
-      body: fBody.value
+      body: fBody.value,
+      image: imageUrl || ""
     };
     if(!entry.title && !entry.body.trim()){ status("Skriv en titel eller text"); return; }
     const id = editingId;
@@ -736,6 +772,25 @@ function wireJournal(){
     });
     if(ok) closeForm();
     // on failure the form stays open with the draft intact
+  });
+
+  imageRemove.addEventListener("click", ()=>{ setThumb(null); fImageMsg.textContent = "Bild borttagen"; });
+
+  fImageFile.addEventListener("change", async ()=>{
+    const file = fImageFile.files && fImageFile.files[0]; if(!file) return;
+    if(!getPassword()){ fImageMsg.textContent = "Lösenord krävs för uppladdning"; fImageFile.value=""; return; }
+    fImageMsg.textContent = "Bearbetar…";
+    try{
+      const dataUrl = await resizeImage(file, 1200, 0.85);
+      fImageMsg.textContent = "Laddar upp…";
+      const {url} = await apiUploadMedia("journal", file.name, dataUrl);
+      setThumb(url);
+      fImageMsg.textContent = "Bild uppladdad ✓";
+    }catch(err){
+      fImageMsg.textContent = (err && err.code===401) ? "Fel lösenord – inte uppladdad"
+        : "Uppladdning misslyckades (offline?)";
+    }
+    fImageFile.value = "";
   });
 
   listEl.addEventListener("click", async (ev)=>{
