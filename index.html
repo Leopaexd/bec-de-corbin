@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Björkeborgs Cirkel — Mythic Bastionland</title>
+<style>
+  :root{--ink:#1c1813;--ink-soft:#4a4035;--parch:#f3e9d2;--parch-deep:#e8dab8;--line:#b9a87f;--accent:#7a1d12;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:#2a2620;color:var(--ink);
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    padding:32px 16px;display:flex;justify-content:center;}
+  .sheet{width:100%;max-width:860px;background:var(--parch);
+    background-image:radial-gradient(circle at 20% 10%,rgba(255,255,255,.35),transparent 40%),
+                     radial-gradient(circle at 90% 80%,rgba(120,90,40,.10),transparent 45%);
+    border:1px solid var(--line);box-shadow:0 18px 50px rgba(0,0,0,.55);padding:38px 44px 48px;}
+  header{text-align:center;border-bottom:2px solid var(--ink);padding-bottom:14px;margin-bottom:8px;}
+  .portrait{width:100%;max-width:520px;height:auto;display:block;margin:0 auto 16px;
+    border:3px solid var(--ink);border-radius:4px;box-shadow:0 6px 18px rgba(0,0,0,.35);}
+  .title-tag{letter-spacing:.42em;text-transform:uppercase;font-size:11px;color:var(--ink-soft);margin-bottom:8px;}
+  h1{font-size:38px;margin:0;font-weight:600;}
+  .subtitle{font-size:19px;font-style:italic;color:var(--accent);margin-top:4px;}
+  .rank-line{margin-top:10px;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);}
+  .citation{text-align:center;margin:14px auto 22px;max-width:560px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:26px;}
+  section{margin-bottom:8px;}
+  h2{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--accent);
+    border-bottom:1px solid var(--line);padding-bottom:5px;margin:22px 0 12px;font-weight:700;}
+  .virtues{display:flex;gap:14px;justify-content:center;margin:6px 0 4px;}
+  .vbox{flex:1;text-align:center;border:1.5px solid var(--ink);border-radius:3px;padding:10px 4px 8px;background:var(--parch-deep);}
+  .vbox .lab{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft);}
+  .vbox input{font-family:inherit;font-size:30px;font-weight:600;text-align:center;width:100%;
+    border:none;background:transparent;color:var(--ink);margin-top:2px;-moz-appearance:textfield;}
+  .vbox input::-webkit-outer-spin-button,.vbox input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  .gd-row{display:flex;gap:14px;margin-top:14px;}
+  dl{margin:0;} dt{font-weight:700;font-size:13px;margin-top:10px;} dd{margin:2px 0 0;font-size:15px;color:var(--ink-soft);line-height:1.4;}
+  .kit{padding-left:18px;margin:0;} .kit li{margin-bottom:7px;font-size:15px;line-height:1.4;}
+  .fellow{font-size:15px;line-height:1.55;} .fellow b{color:var(--ink);} .me{color:var(--accent);font-weight:700;}
+  .trauma{display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:6px;}
+  .trauma label{font-size:14px;display:flex;align-items:center;gap:7px;cursor:pointer;}
+  .trauma input{width:15px;height:15px;accent-color:var(--accent);}
+  .editable{font-family:inherit;font-size:15px;color:var(--accent);font-style:italic;
+    background:rgba(122,29,18,.06);border:1px dashed var(--line);border-radius:3px;padding:3px 8px;width:100%;}
+  .editable::placeholder{color:#a08b66;font-style:italic;}
+  textarea.editable{font-style:normal;color:var(--ink-soft);min-height:64px;resize:vertical;}
+  .problems{margin:0;padding-left:22px;} .problems li{font-size:15px;line-height:1.5;margin-bottom:10px;}
+  .clock-tag{display:inline-block;background:var(--accent);color:var(--parch);font-size:11px;
+    letter-spacing:.12em;text-transform:uppercase;padding:2px 9px;border-radius:3px;margin-left:4px;}
+  .intrigue{border:1px solid var(--accent);border-left:5px solid var(--accent);background:rgba(122,29,18,.06);
+    padding:14px 18px;border-radius:3px;font-size:14.5px;line-height:1.55;}
+  .intrigue .who{font-weight:700;font-size:16px;} .intrigue .hint{display:block;margin-top:8px;} .intrigue .hint b{color:var(--accent);}
+  .dice-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+  .die-btn{font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;background:var(--parch-deep);
+    color:var(--ink);border:1.5px solid var(--ink);border-radius:4px;padding:8px 14px;min-width:48px;}
+  .die-btn:hover{background:var(--line);}
+  .die-btn.save{border-color:var(--accent);color:var(--accent);}
+  #diceResult{font-size:22px;font-weight:600;min-height:30px;margin:4px 0 10px;}
+  #diceResult .ok{color:#2c6e3f;} #diceResult .fail{color:var(--accent);}
+  #diceLog{font-size:13px;color:var(--ink-soft);line-height:1.6;max-height:120px;overflow-y:auto;border-top:1px solid var(--line);padding-top:8px;}
+  .sheetbtn{font-family:inherit;font-size:13px;letter-spacing:.14em;text-transform:uppercase;
+    background:var(--accent);color:var(--parch);border:none;padding:10px 26px;border-radius:3px;cursor:pointer;margin:0 5px;}
+  .backlink{display:inline-block;margin-bottom:18px;font-size:13px;color:var(--ink-soft);text-decoration:none;letter-spacing:.08em;}
+  .backlink:hover{color:var(--accent);}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:18px;}
+  .card{border:1.5px solid var(--ink);border-radius:5px;padding:18px;background:var(--parch-deep);
+    text-decoration:none;color:var(--ink);display:block;transition:transform .1s;}
+  .card:hover{transform:translateY(-3px);box-shadow:0 8px 18px rgba(0,0,0,.25);}
+  .card h3{margin:0 0 4px;font-size:21px;} .card .ct{font-style:italic;color:var(--accent);font-size:15px;}
+  .card .cr{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-top:8px;}
+  .note{font-size:12px;color:var(--ink-soft);text-align:center;margin-top:30px;letter-spacing:.06em;}
+  @media (max-width:680px){.grid{grid-template-columns:1fr;}}
+  @media print{body{background:#fff;padding:0;}.sheet{box-shadow:none;border:none;}
+    .editable,.vbox input{border:none;background:transparent;color:var(--ink);font-style:normal;}
+    .sheetbtn,#saveMsg,.backlink,.die-btn{display:none !important;}}
+</style>
+</head>
+<body>
+<div class="sheet" id="root"></div>
+
+<script>
+/* ---------- DATA ---------- */
+const REALM = "Yxkullen", HOLDING = "Björkeborg";
+
+const FELLOWSHIP = [
+  {key:"bec",     name:"Sir Bec de Corbin", role:"Krigets Riddare"},
+  {key:"bielke",  name:"Riddar Bielke",     role:"Lövriddaren (Leaf Knight) · härskare"},
+  {key:"grakorp", name:"Isador Gråkorp",    role:"Galgens Riddare (Gallows Knight)"},
+];
+
+const CHARACTERS = {
+  bec:{
+    name:"Sir Bec de Corbin", title:"Krigets Riddare",
+    glory:6, rank:"Knight-Tenant", age:45, role:"Vapenmästare vid Björkeborg",
+    portrait:"bec-de-corbin.png",
+    virtues:{vig:17,cla:15,spi:7}, guard:10, armour:3,
+    ability:{name:"Battle Awareness", text:"I strid med minst 3 kombattanter på varje sida räknas alla dina Gambits som Strong Gambits."},
+    passion:{name:"Duty", text:"Återställ SPI när du svarar på kallelsen till krigstjänst under en överordnad."},
+    kit:["<b>Bec-de-corbin</b> (d8, long) — +d10 mot mål med sköld",
+         "Gambeson (A1), splint (A1), helm (A1) — Armour 3",
+         "Whalebone chess set (och viss skicklighet)"],
+    steed:"Stocky steed — VIG 15, CLA 8, SPI 5, 2 GD",
+    knightedBy:"The Lost Seer",
+    helm:true,
+    background:"Bec de Corbins förra herre föll i ett fälttåg. Riddar Bielke, som stred på samma sida, erbjöd Bec att följa med till Björkeborg och ta tjänst som vapenmästare. Bec tackade ja — en ny mur att hålla, nya soldater att förbereda.",
+    personality:"Lugn, noggrann och tålmodig — mannen yngre soldater skickas till. Trettio år av att hålla murar har gjort honom till en läromästare: Battle Awareness är hårt vunnen instinkt han försöker föra vidare. Tröttheten finns kvar (SPI 7), men den bärs som tyngd, inte förtvivlan. Duty är ryggraden: att skydda och förbereda andra ger tröttheten mening.",
+    warband:{name:"Björkeborgs Vakt (Militia)", vig:10,cla:10,spi:7,gd:3,
+      lines:["<b>Militia</b> — ~24 soldater som räknas som en enhet",
+             "Beväpning: crude polearm (d8, long)",
+             "Mortally Wounded → flykt · VIG 0 → utplånade · SPI 0 → brutna",
+             "Tål inte individuella attacker (utom Blast / storskaliga)",
+             "Attacker mot individer: <b>+d12 och Blast Damage</b>"]},
+    problems:[
+      "<b>Skattevägran.</b> Byarna runtom vägrar betala skatt — de menar att de borde betala till <b>Stora Yxkull</b> (huvudstaden) i stället för Björkeborg.",
+      "<b>Trohetsederna.</b> Stora Yxkull kräver att alla riddare reser dit för att förnya sina trohetseder. <span class='clock-tag'>⏳ inom 7 dagar</span>",
+      "<b>Myteri.</b> Björkeborgs krigsband tycks vara på väg mot myteri."],
+    intrigue:{who:"Sergeant Brunke",
+      body:"har något fuffens för sig. Tar emot <b>brev om natten</b>, har skaffat <b>nya fina kläder</b> och verkar ha mer pengar än han borde.",
+      hints:["<b>Becs misstanke:</b> Brunke är mutad av <b>rövarna i skogen</b> — de som varit ovanligt svåra att finna och som överfallit många köpmän.",
+             "<b>Komplikation:</b> många soldater ser upp till Brunke. Utan starka bevis går han inte att anklaga."]},
+  },
+  bielke:{
+    name:"Riddar Bielke", title:"Lövriddaren", glory:6, rank:"Knight-Tenant", age:null,
+    role:"Härskare över Björkeborg · sitter på Maktens Säte",
+    virtues:{vig:null,cla:null,spi:null}, guard:null, armour:null,
+    ability:{name:"Nature's Vault", text:"Du kan slunga grenar som javelins (d6) eller greatspears (d10 long) och äta löv som ett mättande mål."},
+    passion:{name:"Gourmet", text:"Återställ SPI när du äter en ny sorts frukt eller grönsak."},
+    kit:["Hooked club (d8 hefty)","Verdant leather (A1 medan du är i lövverk)","Useful stick (se boken)",
+         "Murmur box (skapar illusionen av otydligt samtal när den öppnas)"],
+    steed:"Patchy steed — VIG 12, CLA 5, SPI 5, 3 GD",
+    knightedBy:"",
+  },
+  grakorp:{
+    name:"Isador Gråkorp", title:"Galgens Riddare", glory:6, rank:"Knight-Tenant", age:null,
+    role:null,
+    virtues:{vig:null,cla:null,spi:null}, guard:null, armour:null,
+    ability:{name:"Carrion's Call", text:"Tala med asätardjur och kalla dem till dig. De hjälper bara till om du ger dem mat."},
+    passion:{name:"Misery", text:"Återställ SPI när du möter någon ny och klagar för dem om något."},
+    kit:["Neck-catcher (d10 long) — Wounded mål snärjs säkert runt halsen","Salvaged armour (se boken)",
+         "Titan beads (3 stenar; kastade blir de ett stenblock i luften, d10 blast; fylls på varje Season)"],
+    steed:"Flea-bitten steed — VIG 9, CLA 7, SPI 4, 3 GD",
+    knightedBy:"",
+  },
+};
+
+/* ---------- RENDER ---------- */
+const root = document.getElementById("root");
+const params = new URLSearchParams(location.search);
+const key = params.get("c");
+const esc = s => (s==null?"":String(s));
+
+function num(id, val){
+  return `<input class="pf" id="${id}" type="number" value="${val==null?"":val}" placeholder="–">`;
+}
+
+if (!key || !CHARACTERS[key]) { renderLanding(); } else { renderSheet(key, CHARACTERS[key]); }
+
+function renderLanding(){
+  document.title = "Björkeborgs Cirkel";
+  let cards = FELLOWSHIP.map(f=>{
+    const c = CHARACTERS[f.key];
+    return `<a class="card" href="?c=${f.key}">
+      <h3>${esc(c.name)}</h3><div class="ct">${esc(c.title)}</div>
+      <div class="cr">Glory ${esc(c.glory)} · ${esc(c.rank)}</div></a>`;
+  }).join("");
+  root.innerHTML = `
+    <header><div class="title-tag">Mythic Bastionland · ${REALM} · ${HOLDING}</div>
+      <h1>Björkeborgs Cirkel</h1><div class="subtitle">Riddarna under Lövriddaren</div></header>
+    <div class="cards">${cards}</div>
+    <div class="note">Välj en riddare för att se arket. Vill du lägga till en ny rollperson — säg till spelledaren.</div>`;
+}
+
+function renderSheet(k, c){
+  document.title = `${c.name} — ${c.title}`;
+  const v = c.virtues || {};
+  const ageLine = c.age ? ` · Ålder ${c.age}` : "";
+  const portrait = c.portrait ? `<img class="portrait" src="${c.portrait}" alt="${esc(c.name)}">` : "";
+  const roleLine = c.role ? `<div class="rank-line" style="margin-top:6px;color:var(--accent);">${esc(c.role)}</div>` : "";
+
+  const helmSection = c.helm ? `<section><h2>Helm <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink-soft);">(ditt val)</span></h2>
+    <input class="editable pf" id="helm" placeholder="Välj hjälmens utseende…"></section>` : "";
+
+  const roleSection = c.role ? `<section><h2>Roll vid Borgen</h2><div class="fellow">${esc(c.role)}.</div></section>` : "";
+
+  const warband = c.warband ? `<section><h2>Warband — ${esc(c.warband.name)}</h2>
+    <div class="virtues">
+      <div class="vbox"><div class="lab">Vigour</div><div style="font-size:30px;font-weight:600;">${c.warband.vig}</div></div>
+      <div class="vbox"><div class="lab">Clarity</div><div style="font-size:30px;font-weight:600;">${c.warband.cla}</div></div>
+      <div class="vbox"><div class="lab">Spirit</div><div style="font-size:30px;font-weight:600;">${c.warband.spi}</div></div>
+      <div class="vbox"><div class="lab">Guard</div><div style="font-size:30px;font-weight:600;">${c.warband.gd}</div></div>
+    </div><ul class="kit" style="margin-top:14px;">${c.warband.lines.map(l=>`<li>${l}</li>`).join("")}</ul></section>` : "";
+
+  const problems = c.problems ? `<section><h2>${HOLDING}s problem</h2>
+    <ol class="problems">${c.problems.map(p=>`<li>${p}</li>`).join("")}</ol></section>` : "";
+
+  const intrigue = c.intrigue ? `<section><h2>Intrig — ${esc(c.intrigue.who)}</h2>
+    <div class="intrigue"><span class="who">${esc(c.intrigue.who)}</span> ${c.intrigue.body}
+    ${c.intrigue.hints.map(h=>`<span class="hint">${h}</span>`).join("")}</div></section>` : "";
+
+  const fellow = FELLOWSHIP.map(f=>{
+    const nm = f.key===k ? `<span class="me">${esc(f.name)}</span>` : `<b>${esc(f.name)}</b>`;
+    return `${nm} — ${esc(f.role)}`;
+  }).join("<br>");
+
+  root.innerHTML = `
+  <a class="backlink" href="./">← Björkeborgs Cirkel</a>
+  <header>${portrait}
+    <div class="title-tag">Mythic Bastionland · ${REALM} · ${HOLDING}</div>
+    <h1>${esc(c.name)}</h1><div class="subtitle">${esc(c.title)}</div>
+    <div class="rank-line">Glory ${esc(c.glory)} — ${esc(c.rank)}${ageLine}</div>${roleLine}
+  </header>
+  <div class="citation"><input class="editable pf" id="citation" style="text-align:center;" placeholder="Citation — en bragd eller ett valspråk…"></div>
+
+  <section><h2>Virtues</h2>
+    <div class="virtues">
+      <div class="vbox"><div class="lab">Vigour</div>${num("vig",v.vig)}</div>
+      <div class="vbox"><div class="lab">Clarity</div>${num("cla",v.cla)}</div>
+      <div class="vbox"><div class="lab">Spirit</div>${num("spi",v.spi)}</div>
+    </div>
+    <div class="gd-row">
+      <div class="vbox"><div class="lab">Guard</div>${num("guard",c.guard)}</div>
+      <div class="vbox"><div class="lab">Armour</div>${num("armour",c.armour)}</div>
+    </div>
+  </section>
+
+  <section><h2>Tärningar</h2>
+    <div class="dice-row">
+      ${[4,6,8,10,12,20].map(d=>`<button class="die-btn" data-d="${d}">d${d}</button>`).join("")}
+    </div>
+    <div class="dice-row">
+      <button class="die-btn save" data-save="VIG" data-field="vig">Save VIG</button>
+      <button class="die-btn save" data-save="CLA" data-field="cla">Save CLA</button>
+      <button class="die-btn save" data-save="SPI" data-field="spi">Save SPI</button>
+    </div>
+    <div id="diceResult">—</div><div id="diceLog"></div>
+  </section>
+
+  <div class="grid">
+    <div>
+      <section><h2>Ability & Passion</h2>
+        <dl><dt>${esc(c.ability.name)}</dt><dd>${esc(c.ability.text)}</dd>
+        <dt>Passion — ${esc(c.passion.name)}</dt><dd>${esc(c.passion.text)}</dd></dl>
+      </section>
+      <section><h2>Trauma</h2>
+        <div class="trauma">
+          <label><input type="checkbox" class="pf" id="t_exposed"> Exposed</label>
+          <label><input type="checkbox" class="pf" id="t_exhausted"> Exhausted</label>
+          <label><input type="checkbox" class="pf" id="t_fatigued"> Fatigued</label>
+          <label><input type="checkbox" class="pf" id="t_impaired"> Impaired</label>
+        </div>
+      </section>
+      ${helmSection}
+    </div>
+    <div>
+      <section><h2>Property</h2>
+        <ul class="kit">${c.kit.map(x=>`<li>${x}</li>`).join("")}</ul>
+        <dl><dt>Riddjur</dt><dd>${esc(c.steed)}</dd>
+        ${c.knightedBy?`<dt>Knighted by</dt><dd>${esc(c.knightedBy)}</dd>`:""}</dl>
+      </section>
+      <section><h2>Fellowship — ${HOLDING}s Cirkel</h2><div class="fellow">${fellow}</div></section>
+    </div>
+  </div>
+
+  ${roleSection}${warband}${problems}${intrigue}
+
+  <section><h2>Bakgrund</h2>
+    <textarea class="editable pf" id="background" placeholder="Rollpersonens bakgrund…">${esc(c.background||"")}</textarea></section>
+  <section><h2>Personlighet</h2>
+    <textarea class="editable pf" id="personality" style="min-height:120px;" placeholder="Personlighet…">${esc(c.personality||"")}</textarea></section>
+  <section><h2>Scars & Anteckningar</h2>
+    <textarea class="editable pf" id="notes" placeholder="Scars, händelser, anteckningar…"></textarea></section>
+
+  <div style="text-align:center;margin-top:26px;">
+    <button id="saveBtn" class="sheetbtn">Spara</button>
+    <button id="printBtn" class="sheetbtn" style="background:transparent;color:var(--accent);border:1px solid var(--accent);">Skriv ut / PDF</button>
+    <span id="saveMsg" style="margin-left:14px;font-size:13px;color:var(--ink-soft);"></span>
+  </div>
+  <div class="note">${HOLDING} lyder under riket ${REALM} · Maktens Säte vilar under ett ondskefullt inflytande</div>`;
+
+  wire(k);
+}
+
+/* ---------- PERSISTENCE + DICE ---------- */
+function wire(k){
+  const STORE = "mb-" + k + "-v2";
+  const pf = Array.from(document.querySelectorAll(".pf"));
+
+  function save(announce){
+    const data = {};
+    pf.forEach(el => data[el.id] = (el.type==="checkbox") ? el.checked : el.value);
+    localStorage.setItem(STORE, JSON.stringify(data));
+    if (announce){ const m=document.getElementById("saveMsg");
+      m.textContent="Sparat ✓"; setTimeout(()=>m.textContent="",3000); }
+  }
+  function load(){
+    let data={}; try{ data=JSON.parse(localStorage.getItem(STORE))||{}; }catch(e){}
+    pf.forEach(el=>{ if(data[el.id]!=null){ if(el.type==="checkbox") el.checked=data[el.id]; else el.value=data[el.id]; }});
+  }
+  load();
+  pf.forEach(el=>el.addEventListener(el.type==="checkbox"?"change":"input",()=>save(false)));
+  document.getElementById("saveBtn").addEventListener("click",()=>save(true));
+  document.getElementById("printBtn").addEventListener("click",()=>{save(false);window.print();});
+
+  const resultEl=document.getElementById("diceResult"), logEl=document.getElementById("diceLog");
+  const r=n=>Math.floor(Math.random()*n)+1;
+  function logRoll(html){ resultEl.innerHTML=html;
+    const line=document.createElement("div");
+    const t=new Date().toLocaleTimeString("sv-SE",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+    line.innerHTML=`${t} — ${html}`; logEl.prepend(line);
+    while(logEl.children.length>20) logEl.removeChild(logEl.lastChild); }
+
+  document.querySelectorAll(".die-btn[data-d]").forEach(b=>b.addEventListener("click",()=>{
+    const s=+b.dataset.d; logRoll(`d${s} → <b>${r(s)}</b>`); }));
+
+  document.querySelectorAll(".die-btn[data-save]").forEach(b=>b.addEventListener("click",()=>{
+    const score=parseInt(document.getElementById(b.dataset.field).value,10);
+    if(isNaN(score)){ logRoll(`<span class="fail">Sätt ${b.dataset.save}-värdet först</span>`); return; }
+    const roll=r(20), pass=roll<=score;
+    logRoll(`Save ${b.dataset.save} (≤${score}): d20 → <b>${roll}</b> `+
+      (pass?`<span class="ok">✓ klarad</span>`:`<span class="fail">✗ misslyckad</span>`)); }));
+}
+</script>
+</body>
+</html>
