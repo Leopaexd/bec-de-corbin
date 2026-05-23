@@ -231,12 +231,46 @@ function resizeImage(file, maxSide, quality){
   });
 }
 
+/* ---------- CAMPAIGN INDEX (shared via /api/state key "campaign-index") ---------- */
+const INDEX_KEY = "campaign-index";
+const INDEX_STORE = "mb-campaign-index-v1";
+const DEFAULT_INDEX = [{id:"kampanj", name:HOLDING}];
+
+function normalizeIndex(arr){
+  if(!Array.isArray(arr) || !arr.length) return DEFAULT_INDEX.slice();
+  const out = arr.filter(e=>e && e.id && e.name).map(e=>({id:String(e.id), name:String(e.name)}));
+  return out.length ? out : DEFAULT_INDEX.slice();
+}
+// Returns {index, offline}. Always resolves to a usable list.
+async function fetchIndex(){
+  let cached = null;
+  try{ cached = JSON.parse(localStorage.getItem(INDEX_STORE)); }catch(e){}
+  try{
+    const remote = await apiGetState(INDEX_KEY);
+    const idx = normalizeIndex(remote && remote.index);
+    try{ localStorage.setItem(INDEX_STORE, JSON.stringify(idx)); }catch(e){}
+    return {index: idx, offline:false};
+  }catch(err){
+    return {index: normalizeIndex(cached), offline:true};
+  }
+}
+function slugify(s){
+  return String(s).toLowerCase()
+    .replace(/[åä]/g,"a").replace(/ö/g,"o")
+    .replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,32) || "plats";
+}
+function randChars(n){
+  const c="abcdefghijklmnopqrstuvwxyz0123456789"; let s="";
+  for(let i=0;i<n;i++) s+=c[Math.floor(Math.random()*c.length)];
+  return s;
+}
+
 if (!key) { renderLanding(); }
-else if (key === "kampanj") { renderCampaign(); }
+else if (key === "kampanj" || key.startsWith("camp-")) { renderCampaign(key); }
 else if (CHARACTERS[key]) { renderSheet(key, CHARACTERS[key]); }
 else { renderLanding(); }
 
-function renderLanding(){
+async function renderLanding(){
   document.title = "Björkeborgs Cirkel";
   let cards = FELLOWSHIP.map(f=>{
     const c = CHARACTERS[f.key];
@@ -244,18 +278,48 @@ function renderLanding(){
       <h3>${esc(c.name)}</h3><div class="ct">${esc(c.title)}</div>
       <div class="cr">Glory ${esc(c.glory)} · ${esc(c.rank)}</div></a>`;
   }).join("");
+
+  const {index, offline} = await fetchIndex();
+  const banners = index.map(e=>`
+    <a class="campaign-banner" href="?c=${encodeURIComponent(e.id)}" style="margin-bottom:12px;">
+      <div><div class="cb-title">${esc(e.name)}</div>
+        <div class="cb-sub">Beskrivning · kartor &amp; bilder</div></div>
+      <span class="cb-arrow">→</span>
+    </a>`).join("");
+  const offlineNote = offline ? `<div class="upload-msg" style="text-align:center;margin-top:8px;">Offline-läge – visar senast kända lista.</div>` : "";
+
   root.innerHTML = `
     <header><div class="title-tag">Mythic Bastionland · ${REALM} · ${HOLDING}</div>
       <h1>Björkeborgs Cirkel</h1><div class="subtitle">Riddarna under Lövriddaren</div></header>
     <h2>Riddarna</h2>
     <div class="cards">${cards}</div>
     <h2 style="margin-top:30px;">Kampanjen</h2>
-    <a class="campaign-banner" href="?c=kampanj">
-      <div><div class="cb-title">Björkeborg</div>
-        <div class="cb-sub">Beskrivning · kartor &amp; bilder · riket Yxkullen</div></div>
-      <span class="cb-arrow">→</span>
-    </a>
-    <div class="note">Välj en riddare för att se arket, eller öppna kampanjen för Björkeborg.<br>Vill du lägga till en ny rollperson — säg till spelledaren.</div>`;
+    <div id="campaignBanners">${banners}</div>
+    <div style="margin-top:6px;">
+      <button id="addPlaceBtn" class="die-btn" style="background:transparent;">＋ Lägg till plats</button>
+      <span class="upload-msg" id="addPlaceMsg" style="margin-left:10px;"></span>
+    </div>
+    ${offlineNote}
+    <div class="note">Välj en riddare för att se arket, eller öppna en plats i kampanjen.<br>Vill du lägga till en ny rollperson — säg till spelledaren.</div>`;
+
+  const addMsg = document.getElementById("addPlaceMsg");
+  document.getElementById("addPlaceBtn").addEventListener("click", async ()=>{
+    const name = (prompt("Namn på den nya platsen:") || "").trim();
+    if(!name) return;
+    if(!getPassword()){ addMsg.textContent = "Lösenord krävs"; return; }
+    addMsg.textContent = "Sparar…";
+    const id = "camp-" + slugify(name) + "-" + randChars(4);
+    // re-fetch the freshest index so we don't clobber concurrent additions
+    const fresh = await fetchIndex();
+    const newIndex = fresh.index.concat([{id, name}]);
+    try{
+      await apiPutState(INDEX_KEY, {index:newIndex});
+      try{ localStorage.setItem(INDEX_STORE, JSON.stringify(newIndex)); }catch(e){}
+      location.search = "?c=" + encodeURIComponent(id);
+    }catch(err){
+      addMsg.textContent = (err && err.code===401) ? "Fel lösenord – inte sparat" : "Kunde inte spara (offline) – inte sparat";
+    }
+  });
 }
 
 function renderSheet(k, c){
@@ -375,17 +439,29 @@ function renderSheet(k, c){
 }
 
 /* ---------- CAMPAIGN PAGE ---------- */
-function renderCampaign(){
-  document.title = `Kampanj — ${HOLDING}`;
+async function renderCampaign(id){
+  // Look up the name from the shared index; fall back gracefully.
+  const {index, offline} = await fetchIndex();
+  let entry = index.find(e=>e.id===id);
+  if(!entry){
+    // direct link to an id not in the index: still show a page
+    entry = {id, name: id==="kampanj" ? HOLDING : "Plats"};
+  }
+  const name = entry.name;
+  const isHome = (id==="kampanj");
+  document.title = `Kampanj — ${name}`;
+  const offlineNote = offline ? `<div class="upload-msg" style="text-align:center;">Offline-läge.</div>` : "";
+
   root.innerHTML = `
   <a class="backlink" href="./">← Björkeborgs Cirkel</a>
   <header>
     <div class="title-tag">Mythic Bastionland · ${REALM}</div>
-    <h1>${HOLDING}</h1><div class="subtitle">Kampanjen</div>
+    <h1>${esc(name)}</h1><div class="subtitle">Kampanjen</div>
   </header>
+  ${offlineNote}
 
   <section><h2>Beskrivning</h2>
-    <textarea class="editable" id="kampanjDesc" style="min-height:200px;font-size:16px;line-height:1.6;"></textarea>
+    <textarea class="editable" id="kampanjDesc" style="min-height:200px;font-size:16px;line-height:1.6;" placeholder="Beskrivning av platsen…"></textarea>
     <div style="text-align:center;margin-top:16px;">
       <button id="saveBtn" class="sheetbtn">Spara</button>
       <span id="saveMsg" style="margin-left:14px;font-size:13px;color:var(--ink-soft);"></span>
@@ -401,13 +477,14 @@ function renderCampaign(){
     <div class="gallery" id="gallery"><div class="empty">Laddar…</div></div>
   </section>
 
-  <div class="note">${HOLDING} lyder under riket ${REALM} · Maktens Säte vilar under ett ondskefullt inflytande</div>`;
+  <div class="note">${esc(name)} · riket ${REALM}</div>`;
 
-  wireCampaign();
+  wireCampaign(id, isHome);
 }
 
-function wireCampaign(){
-  const STORE = "mb-kampanj-v2";
+function wireCampaign(id, isHome){
+  const STORE = "mb-camp-" + id + "-v2";
+  const mediaScope = (id==="kampanj") ? "campaign" : id;
   const desc = document.getElementById("kampanjDesc");
   const msgEl = document.getElementById("saveMsg");
   let saveTimer = null;
@@ -417,7 +494,7 @@ function wireCampaign(){
   async function save(announce){
     const data = { description: desc.value };
     cacheLocal(data);
-    try{ await apiPutState("kampanj", data); if(announce) status("Sparat ✓"); }
+    try{ await apiPutState(id, data); if(announce) status("Sparat ✓"); }
     catch(err){ status(err && err.code===401 ? "Fel lösenord" : "Offline – sparat lokalt"); }
   }
   function scheduleSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(()=>save(false),1000); }
@@ -425,9 +502,10 @@ function wireCampaign(){
   async function load(){
     let cached={}; try{ cached=JSON.parse(localStorage.getItem(STORE))||{}; }catch(e){}
     let data = cached;
-    try{ const remote = await apiGetState("kampanj"); data = Object.assign({}, cached, remote); cacheLocal(data); }
+    try{ const remote = await apiGetState(id); data = Object.assign({}, cached, remote); cacheLocal(data); }
     catch(err){ status("Offline-läge – sparas lokalt"); }
-    desc.value = (data.description!=null && data.description!=="") ? data.description : KAMPANJ_DEFAULT;
+    const fallback = isHome ? KAMPANJ_DEFAULT : "";
+    desc.value = (data.description!=null && data.description!=="") ? data.description : fallback;
   }
   load();
   desc.addEventListener("input", scheduleSave);
@@ -437,7 +515,7 @@ function wireCampaign(){
   const gallery = document.getElementById("gallery");
   async function loadGallery(){
     try{
-      const items = await apiListMedia("campaign");
+      const items = await apiListMedia(mediaScope);
       if(!items.length){ gallery.innerHTML = `<div class="empty">Inga bilder uppladdade ännu.</div>`; return; }
       gallery.innerHTML = items.map(it=>
         `<a href="${it.url}" target="_blank" rel="noopener"><img src="${it.url}" alt="${esc(it.pathname)}" loading="lazy"></a>`
@@ -453,7 +531,7 @@ function wireCampaign(){
     try{
       const dataUrl = await resizeImage(file, 1600, 0.85);
       mMsg.textContent = "Laddar upp…";
-      await apiUploadMedia("campaign", file.name, dataUrl);
+      await apiUploadMedia(mediaScope, file.name, dataUrl);
       mMsg.textContent = "Uppladdad ✓";
       loadGallery();
     }catch(err){
