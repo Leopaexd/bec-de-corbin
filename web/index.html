@@ -68,6 +68,18 @@
   .card h3{margin:0 0 4px;font-size:21px;} .card .ct{font-style:italic;color:var(--accent);font-size:15px;}
   .card .cr{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-top:8px;}
   .note{font-size:12px;color:var(--ink-soft);text-align:center;margin-top:30px;letter-spacing:.06em;}
+  .upload-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:8px 0 4px;}
+  .upload-row label.filebtn{font-family:inherit;font-size:13px;letter-spacing:.1em;text-transform:uppercase;
+    background:var(--parch-deep);color:var(--ink);border:1.5px solid var(--ink);border-radius:4px;
+    padding:8px 16px;cursor:pointer;display:inline-block;}
+  .upload-row label.filebtn:hover{background:var(--line);}
+  .upload-row input[type=file]{display:none;}
+  .upload-msg{font-size:13px;color:var(--ink-soft);}
+  .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-top:14px;}
+  .gallery a{display:block;border:1.5px solid var(--ink);border-radius:4px;overflow:hidden;background:var(--parch-deep);
+    box-shadow:0 4px 12px rgba(0,0,0,.2);}
+  .gallery img{display:block;width:100%;height:150px;object-fit:cover;}
+  .gallery .empty{grid-column:1/-1;font-size:14px;color:var(--ink-soft);font-style:italic;}
   @media (max-width:680px){.grid{grid-template-columns:1fr;}}
   @media print{body{background:#fff;padding:0;}.sheet{box-shadow:none;border:none;}
     .editable,.vbox input{border:none;background:transparent;color:var(--ink);font-style:normal;}
@@ -80,6 +92,8 @@
 <script>
 /* ---------- DATA ---------- */
 const REALM = "Yxkullen", HOLDING = "Björkeborg";
+
+const KAMPANJ_DEFAULT = "Björkeborg är en borg av timmer och sten bland vita björkskogar i riket Yxkullen, underställd huvudstaden Stora Yxkull. Härifrån härskar Riddar Bielke, Lövriddaren, från Maktens Säte — men sätet vilar under ett ondskefullt inflytande. Runtom vägrar byarna betala skatt och menar att de borde betala till Stora Yxkull. Skogarna döljer rövare som varit ovanligt svåra att finna och som överfallit många köpmän. Borgens garnison, Björkeborgs Vakt, drillas av vapenmästaren Sir Bec de Corbin — men myteri pyr, och sergeant Brunke misstänks vara mutad.";
 
 const FELLOWSHIP = [
   {key:"bec",     name:"Sir Bec de Corbin", role:"Krigets Riddare"},
@@ -152,7 +166,68 @@ function num(id, val){
   return `<input class="pf" id="${id}" type="number" value="${val==null?"":val}" placeholder="–">`;
 }
 
-if (!key || !CHARACTERS[key]) { renderLanding(); } else { renderSheet(key, CHARACTERS[key]); }
+/* ---------- SHARED STORAGE (Vercel Blob via /api) ---------- */
+const KEYSTORE = "mb-campaign-key";
+function getPassword(){
+  let p = localStorage.getItem(KEYSTORE);
+  if(!p){ p = prompt("Kampanjlösenord (krävs för att spara/ladda upp):") || ""; if(p) localStorage.setItem(KEYSTORE, p); }
+  return p;
+}
+function forgetPassword(){ localStorage.removeItem(KEYSTORE); }
+
+async function apiGetState(k){
+  const r = await fetch(`/api/state?c=${encodeURIComponent(k)}`, {cache:"no-store"});
+  if(!r.ok) throw new Error("state get "+r.status);
+  return await r.json();
+}
+async function apiPutState(k, data){
+  const password = getPassword();
+  const r = await fetch(`/api/state?c=${encodeURIComponent(k)}`, {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({password, data})
+  });
+  if(r.status===401){ forgetPassword(); const e=new Error("unauthorized"); e.code=401; throw e; }
+  if(!r.ok) throw new Error("state put "+r.status);
+  return await r.json();
+}
+async function apiListMedia(scope){
+  const r = await fetch(`/api/media?scope=${encodeURIComponent(scope)}`, {cache:"no-store"});
+  if(!r.ok) throw new Error("media list "+r.status);
+  return await r.json();
+}
+async function apiUploadMedia(scope, filename, dataUrl){
+  const password = getPassword();
+  const r = await fetch(`/api/media?scope=${encodeURIComponent(scope)}`, {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({password, filename, dataUrl})
+  });
+  if(r.status===401){ forgetPassword(); const e=new Error("unauthorized"); e.code=401; throw e; }
+  if(!r.ok) throw new Error("media upload "+r.status);
+  return await r.json();
+}
+// Resize an image File client-side via canvas -> JPEG data URL.
+function resizeImage(file, maxSide, quality){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = ()=>{
+      URL.revokeObjectURL(url);
+      let {width:w, height:h} = img;
+      const scale = Math.min(1, maxSide/Math.max(w,h));
+      w = Math.round(w*scale); h = Math.round(h*scale);
+      const cv = document.createElement("canvas"); cv.width=w; cv.height=h;
+      cv.getContext("2d").drawImage(img,0,0,w,h);
+      resolve(cv.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error("bild kunde inte läsas")); };
+    img.src = url;
+  });
+}
+
+if (!key) { renderLanding(); }
+else if (key === "kampanj") { renderCampaign(); }
+else if (CHARACTERS[key]) { renderSheet(key, CHARACTERS[key]); }
+else { renderLanding(); }
 
 function renderLanding(){
   document.title = "Björkeborgs Cirkel";
@@ -165,7 +240,11 @@ function renderLanding(){
   root.innerHTML = `
     <header><div class="title-tag">Mythic Bastionland · ${REALM} · ${HOLDING}</div>
       <h1>Björkeborgs Cirkel</h1><div class="subtitle">Riddarna under Lövriddaren</div></header>
-    <div class="cards">${cards}</div>
+    <div class="cards">${cards}
+      <a class="card" href="?c=kampanj">
+        <h3>Kampanj</h3><div class="ct">Björkeborg</div>
+        <div class="cr">Beskrivning · Kartor & bilder</div></a>
+    </div>
     <div class="note">Välj en riddare för att se arket. Vill du lägga till en ny rollperson — säg till spelledaren.</div>`;
 }
 
@@ -173,7 +252,8 @@ function renderSheet(k, c){
   document.title = `${c.name} — ${c.title}`;
   const v = c.virtues || {};
   const ageLine = c.age ? ` · Ålder ${c.age}` : "";
-  const portrait = c.portrait ? `<img class="portrait" src="${c.portrait}" alt="${esc(c.name)}">` : "";
+  const defaultPortrait = c.portrait || "";
+  const portrait = `<img class="portrait" id="portraitImg" src="${defaultPortrait}" alt="${esc(c.name)}"${defaultPortrait?"":' style="display:none;"'}>`;
   const roleLine = c.role ? `<div class="rank-line" style="margin-top:6px;color:var(--accent);">${esc(c.role)}</div>` : "";
 
   const helmSection = c.helm ? `<section><h2>Helm <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink-soft);">(ditt val)</span></h2>
@@ -208,6 +288,11 @@ function renderSheet(k, c){
     <h1>${esc(c.name)}</h1><div class="subtitle">${esc(c.title)}</div>
     <div class="rank-line">Glory ${esc(c.glory)} — ${esc(c.rank)}${ageLine}</div>${roleLine}
   </header>
+  <div class="upload-row" style="justify-content:center;">
+    <label class="filebtn" for="portraitFile">Ladda upp porträtt</label>
+    <input type="file" id="portraitFile" accept="image/*">
+    <span class="upload-msg" id="portraitMsg"></span>
+  </div>
   <div class="citation"><input class="editable pf" id="citation" style="text-align:center;" placeholder="Citation — en bragd eller ett valspråk…"></div>
 
   <section><h2>Virtues</h2>
@@ -279,26 +364,171 @@ function renderSheet(k, c){
   wire(k);
 }
 
+/* ---------- CAMPAIGN PAGE ---------- */
+function renderCampaign(){
+  document.title = `Kampanj — ${HOLDING}`;
+  root.innerHTML = `
+  <a class="backlink" href="./">← Björkeborgs Cirkel</a>
+  <header>
+    <div class="title-tag">Mythic Bastionland · ${REALM}</div>
+    <h1>${HOLDING}</h1><div class="subtitle">Kampanjen</div>
+  </header>
+
+  <section><h2>Beskrivning</h2>
+    <textarea class="editable" id="kampanjDesc" style="min-height:200px;font-size:16px;line-height:1.6;"></textarea>
+    <div style="text-align:center;margin-top:16px;">
+      <button id="saveBtn" class="sheetbtn">Spara</button>
+      <span id="saveMsg" style="margin-left:14px;font-size:13px;color:var(--ink-soft);"></span>
+    </div>
+  </section>
+
+  <section><h2>Kartor & bilder</h2>
+    <div class="upload-row">
+      <label class="filebtn" for="mapFile">Ladda upp bild / karta</label>
+      <input type="file" id="mapFile" accept="image/*">
+      <span class="upload-msg" id="mapMsg"></span>
+    </div>
+    <div class="gallery" id="gallery"><div class="empty">Laddar…</div></div>
+  </section>
+
+  <div class="note">${HOLDING} lyder under riket ${REALM} · Maktens Säte vilar under ett ondskefullt inflytande</div>`;
+
+  wireCampaign();
+}
+
+function wireCampaign(){
+  const STORE = "mb-kampanj-v2";
+  const desc = document.getElementById("kampanjDesc");
+  const msgEl = document.getElementById("saveMsg");
+  let saveTimer = null;
+  function status(t){ if(msgEl){ msgEl.textContent=t; if(t) setTimeout(()=>{ if(msgEl.textContent===t) msgEl.textContent=""; },3500); } }
+  function cacheLocal(data){ try{ localStorage.setItem(STORE, JSON.stringify(data)); }catch(e){} }
+
+  async function save(announce){
+    const data = { description: desc.value };
+    cacheLocal(data);
+    try{ await apiPutState("kampanj", data); if(announce) status("Sparat ✓"); }
+    catch(err){ status(err && err.code===401 ? "Fel lösenord" : "Offline – sparat lokalt"); }
+  }
+  function scheduleSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(()=>save(false),1000); }
+
+  async function load(){
+    let cached={}; try{ cached=JSON.parse(localStorage.getItem(STORE))||{}; }catch(e){}
+    let data = cached;
+    try{ const remote = await apiGetState("kampanj"); data = Object.assign({}, cached, remote); cacheLocal(data); }
+    catch(err){ status("Offline-läge – sparas lokalt"); }
+    desc.value = (data.description!=null && data.description!=="") ? data.description : KAMPANJ_DEFAULT;
+  }
+  load();
+  desc.addEventListener("input", scheduleSave);
+  document.getElementById("saveBtn").addEventListener("click",()=>save(true));
+
+  // Gallery
+  const gallery = document.getElementById("gallery");
+  async function loadGallery(){
+    try{
+      const items = await apiListMedia("campaign");
+      if(!items.length){ gallery.innerHTML = `<div class="empty">Inga bilder uppladdade ännu.</div>`; return; }
+      gallery.innerHTML = items.map(it=>
+        `<a href="${it.url}" target="_blank" rel="noopener"><img src="${it.url}" alt="${esc(it.pathname)}" loading="lazy"></a>`
+      ).join("");
+    }catch(err){ gallery.innerHTML = `<div class="empty">Kunde inte ladda galleriet (offline-läge).</div>`; }
+  }
+  loadGallery();
+
+  const mFile = document.getElementById("mapFile"), mMsg = document.getElementById("mapMsg");
+  mFile.addEventListener("change", async ()=>{
+    const file = mFile.files && mFile.files[0]; if(!file) return;
+    mMsg.textContent = "Bearbetar…";
+    try{
+      const dataUrl = await resizeImage(file, 1600, 0.85);
+      mMsg.textContent = "Laddar upp…";
+      await apiUploadMedia("campaign", file.name, dataUrl);
+      mMsg.textContent = "Uppladdad ✓";
+      loadGallery();
+    }catch(err){
+      mMsg.textContent = (err && err.code===401) ? "Fel lösenord" : "Uppladdning misslyckades";
+    }
+    mFile.value = "";
+  });
+}
+
 /* ---------- PERSISTENCE + DICE ---------- */
 function wire(k){
   const STORE = "mb-" + k + "-v2";
   const pf = Array.from(document.querySelectorAll(".pf"));
+  const msgEl = document.getElementById("saveMsg");
+  let portraitUrl = null; // non-pf state we still persist
+  let saveTimer = null;
+  function status(t){ if(msgEl){ msgEl.textContent = t; if(t) setTimeout(()=>{ if(msgEl.textContent===t) msgEl.textContent=""; }, 3500); } }
 
-  function save(announce){
+  function collect(){
     const data = {};
     pf.forEach(el => data[el.id] = (el.type==="checkbox") ? el.checked : el.value);
-    localStorage.setItem(STORE, JSON.stringify(data));
-    if (announce){ const m=document.getElementById("saveMsg");
-      m.textContent="Sparat ✓"; setTimeout(()=>m.textContent="",3000); }
+    if (portraitUrl) data.portraitUrl = portraitUrl;
+    return data;
   }
-  function load(){
-    let data={}; try{ data=JSON.parse(localStorage.getItem(STORE))||{}; }catch(e){}
+  function applyPortrait(){
+    const img = document.getElementById("portraitImg");
+    if(!img) return;
+    const src = portraitUrl || img.getAttribute("src");
+    if(src){ img.src = src; img.style.display=""; }
+  }
+  function applyData(data){
     pf.forEach(el=>{ if(data[el.id]!=null){ if(el.type==="checkbox") el.checked=data[el.id]; else el.value=data[el.id]; }});
+    if(data.portraitUrl){ portraitUrl = data.portraitUrl; applyPortrait(); }
+  }
+  function cacheLocal(data){ try{ localStorage.setItem(STORE, JSON.stringify(data)); }catch(e){} }
+
+  async function save(announce){
+    const data = collect();
+    cacheLocal(data); // always keep a local cache
+    try{
+      await apiPutState(k, data);
+      if(announce) status("Sparat ✓");
+    }catch(err){
+      if(err && err.code===401) status("Fel lösenord");
+      else status("Offline – sparat lokalt");
+    }
+  }
+  function scheduleSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(()=>save(false), 1000); }
+
+  async function load(){
+    // local cache first so the sheet is never empty
+    let cached={}; try{ cached=JSON.parse(localStorage.getItem(STORE))||{}; }catch(e){}
+    try{
+      const remote = await apiGetState(k);
+      const merged = Object.assign({}, cached, remote);
+      applyData(merged); cacheLocal(merged);
+    }catch(err){
+      applyData(cached);
+      status("Offline-läge – sparas lokalt");
+    }
   }
   load();
-  pf.forEach(el=>el.addEventListener(el.type==="checkbox"?"change":"input",()=>save(false)));
+  applyPortrait();
+
+  pf.forEach(el=>el.addEventListener(el.type==="checkbox"?"change":"input",scheduleSave));
   document.getElementById("saveBtn").addEventListener("click",()=>save(true));
   document.getElementById("printBtn").addEventListener("click",()=>{save(false);window.print();});
+
+  // Portrait upload
+  const pFile = document.getElementById("portraitFile"), pMsg = document.getElementById("portraitMsg");
+  if(pFile) pFile.addEventListener("change", async ()=>{
+    const file = pFile.files && pFile.files[0]; if(!file) return;
+    pMsg.textContent = "Bearbetar…";
+    try{
+      const dataUrl = await resizeImage(file, 800, 0.85);
+      pMsg.textContent = "Laddar upp…";
+      const {url} = await apiUploadMedia("portrait-"+k, file.name, dataUrl);
+      portraitUrl = url; applyPortrait();
+      await save(false);
+      pMsg.textContent = "Porträtt uppladdat ✓";
+    }catch(err){
+      pMsg.textContent = (err && err.code===401) ? "Fel lösenord" : "Uppladdning misslyckades";
+    }
+    pFile.value = "";
+  });
 
   const resultEl=document.getElementById("diceResult"), logEl=document.getElementById("diceLog");
   const r=n=>Math.floor(Math.random()*n)+1;
