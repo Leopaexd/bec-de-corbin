@@ -3,13 +3,15 @@
 Karaktärsark och kampanjnav för en *Mythic Bastionland*-kampanj
 (riket Yxkullen, borgen Björkeborg).
 
-- `index.html` — datadriven mall som renderar varje riddares ark
-  (`/?c=bec`, `/?c=bielke`, `/?c=grakorp`) samt en landningssida.
-- Redigerbara fält + tärningsrullning körs i webbläsaren.
-
-## Status
-Statisk version. Delad lagring (spara/uppdatera rollpersoner för alla,
-uppladdning av porträtt/kartor) via Vercel Blob är nästa steg.
+## Struktur
+- `web/` — den driftsatta appen (datadriven sheet-mall, redigerbara fält,
+  tärningsrullning). **Detta är allt Vercel ska deploya** (Root Directory = `web`).
+- `skill/` — Claude-skillen för Mythic Bastionland. Innehåller copyrightskyddad
+  boktext och får **ALDRIG** driftsättas publikt. Utesluten via `.vercelignore`
+  och genom att Vercels Root Directory pekar på `web/`. Privat repo av just
+  detta skäl.
 
 ## Deploy
-Kopplat till Vercel — auto-deploy vid push till `main`.
+Kopplat till Vercel — auto-deploy vid push till `main`, Root Directory = `web`.
+Delad lagring (spara/uppdatera rollpersoner, uppladdning av porträtt/kartor)
+via Vercel Blob är nästa steg.
