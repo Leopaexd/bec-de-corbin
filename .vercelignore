@@ -1,2 +1,4 @@
-# Aldrig deploya den copyrightskyddade skillen — bara web/ ska driftsättas
-skill
+# Bara web/ ska driftsättas (Vercel Root Directory = web).
+# Extra skydd: deploya aldrig den copyrightskyddade skillen eller repo-instruktioner.
+.claude
+CLAUDE.md
